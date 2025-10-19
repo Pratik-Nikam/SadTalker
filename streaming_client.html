@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SadTalker Live Streaming</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 512px;
+            margin: 0 auto 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        #videoStream {
+            width: 100%;
+            height: auto;
+            display: block;
+            background: #000;
+        }
+        
+        .status-panel {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 5px 0;
+        }
+        
+        .status-label {
+            font-weight: bold;
+            color: #ffd700;
+        }
+        
+        .status-value {
+            color: #00ff88;
+        }
+        
+        .progress-container {
+            margin: 20px 0;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00cc6a);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+        
+        .connection-status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        
+        .connected {
+            background: rgba(0, 255, 136, 0.2);
+            border: 2px solid #00ff88;
+            color: #00ff88;
+        }
+        
+        .disconnected {
+            background: rgba(255, 0, 0, 0.2);
+            border: 2px solid #ff4444;
+            color: #ff4444;
+        }
+        
+        .controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .frame-info {
+            font-size: 0.9em;
+            color: #ccc;
+            text-align: center;
+            margin-top: 10px;
+        }
+        
+        .nodding-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 255, 136, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            font-weight: bold;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>😭 SadTalker Live Streaming</h1>
+        
+        <div id="connectionStatus" class="connection-status disconnected">
+            Disconnected from SadTalker
+        </div>
+        
+        <div class="video-container">
+            <img id="videoStream" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDUxMiA1MTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiBmaWxsPSIjMDAwIi8+Cjx0ZXh0IHg9IjI1NiIgeT0iMjU2IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiM2NjYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5XYWl0aW5nIGZvciBzdHJlYW0uLi48L3RleHQ+Cjwvc3ZnPgo=" alt="Waiting for stream...">
+            <div id="noddingIndicator" class="nodding-indicator" style="display: none;">
+                👋 Nodding
+            </div>
+        </div>
+        
+        <div class="status-panel">
+            <div class="status-item">
+                <span class="status-label">Status:</span>
+                <span id="statusValue" class="status-value">Ready</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Frame:</span>
+                <span id="frameValue" class="status-value">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Resolution:</span>
+                <span id="resolutionValue" class="status-value">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">FPS:</span>
+                <span id="fpsValue" class="status-value">-</span>
+            </div>
+        </div>
+        
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
+            </div>
+            <div class="frame-info">
+                <span id="progressText">Ready to start generation</span>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button id="connectBtn" onclick="connect()">Connect</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            <button id="clearBtn" onclick="clearStream()">Clear</button>
+        </div>
+    </div>
+
+    <script>
+        let websocket = null;
+        let frameCount = 0;
+        let lastFrameTime = Date.now();
+        let fps = 0;
+        
+        function connect() {
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                return;
+            }
+            
+            websocket = new WebSocket('ws://localhost:8765');
+            
+            websocket.onopen = function(event) {
+                updateConnectionStatus(true);
+                updateStatus('Connected to SadTalker');
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+            };
+            
+            websocket.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleStreamData(data);
+                } catch (e) {
+                    console.error('Error parsing message:', e);
+                }
+            };
+            
+            websocket.onclose = function(event) {
+                updateConnectionStatus(false);
+                updateStatus('Disconnected from SadTalker');
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+            };
+            
+            websocket.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                updateStatus('Connection error');
+            };
+        }
+        
+        function disconnect() {
+            if (websocket) {
+                websocket.close();
+            }
+        }
+        
+        function clearStream() {
+            document.getElementById('videoStream').src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDUxMiA1MTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiBmaWxsPSIjMDAwIi8+Cjx0ZXh0IHg9IjI1NiIgeT0iMjU2IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiM2NjYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5XYWl0aW5nIGZvciBzdHJlYW0uLi48L3RleHQ+Cjwvc3ZnPgo=';
+            updateStatus('Stream cleared');
+            updateProgress(0);
+            document.getElementById('frameValue').textContent = '-';
+            document.getElementById('resolutionValue').textContent = '-';
+            document.getElementById('fpsValue').textContent = '-';
+            document.getElementById('noddingIndicator').style.display = 'none';
+        }
+        
+        function handleStreamData(data) {
+            if (data.type === 'frame_update') {
+                updateFrame(data.frame);
+                updateFrameInfo(data);
+                updateProgress(data.progress * 100);
+                
+                if (data.is_nodding) {
+                    document.getElementById('noddingIndicator').style.display = 'block';
+                } else {
+                    document.getElementById('noddingIndicator').style.display = 'none';
+                }
+                
+                updateStatus(data.status || 'Processing');
+            }
+        }
+        
+        function updateFrame(frameBase64) {
+            const img = document.getElementById('videoStream');
+            img.src = 'data:image/jpeg;base64,' + frameBase64;
+            
+            // Calculate FPS
+            frameCount++;
+            const now = Date.now();
+            const deltaTime = now - lastFrameTime;
+            if (deltaTime >= 1000) {
+                fps = Math.round((frameCount * 1000) / deltaTime);
+                document.getElementById('fpsValue').textContent = fps;
+                frameCount = 0;
+                lastFrameTime = now;
+            }
+        }
+        
+        function updateFrameInfo(data) {
+            if (data.frame_idx >= 0) {
+                document.getElementById('frameValue').textContent = 
+                    `${data.frame_idx + 1}/${data.total_frames}`;
+            }
+            
+            if (data.resolution) {
+                document.getElementById('resolutionValue').textContent = 
+                    `${data.resolution}x${data.resolution}`;
+            }
+            
+            const progressText = data.is_preview ? 
+                `Preview: ${Math.round(data.progress * 100)}%` :
+                `Generating: ${Math.round(data.progress * 100)}%`;
+            document.getElementById('progressText').textContent = progressText;
+        }
+        
+        function updateProgress(percent) {
+            document.getElementById('progressFill').style.width = percent + '%';
+        }
+        
+        function updateStatus(status) {
+            document.getElementById('statusValue').textContent = status;
+        }
+        
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            if (connected) {
+                statusEl.className = 'connection-status connected';
+                statusEl.textContent = 'Connected to SadTalker';
+            } else {
+                statusEl.className = 'connection-status disconnected';
+                statusEl.textContent = 'Disconnected from SadTalker';
+            }
+        }
+        
+        // Auto-connect on page load
+        window.onload = function() {
+            setTimeout(connect, 1000);
+        };
+    </script>
+</body>
+</html>

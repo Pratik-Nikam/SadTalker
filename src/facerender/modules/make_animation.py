@@ -138,6 +138,48 @@ def make_animation(source_image, source_semantics, target_semantics,
         predictions_ts = torch.stack(predictions, dim=1)
     return predictions_ts
 
+def make_animation_streaming(source_image, source_semantics, target_semantics,
+                            generator, kp_detector, he_estimator, mapping, 
+                            yaw_c_seq=None, pitch_c_seq=None, roll_c_seq=None,
+                            use_exp=True, use_half=False, callback=None):
+    """Streaming version that yields frames one by one with callback support"""
+    with torch.no_grad():
+        kp_canonical = kp_detector(source_image)
+        he_source = mapping(source_semantics)
+        kp_source = keypoint_transformation(kp_canonical, he_source)
+    
+        total_frames = target_semantics.shape[1]
+        
+        for frame_idx in range(total_frames):
+            target_semantics_frame = target_semantics[:, frame_idx]
+            he_driving = mapping(target_semantics_frame)
+            
+            if yaw_c_seq is not None:
+                he_driving['yaw_in'] = yaw_c_seq[:, frame_idx]
+            if pitch_c_seq is not None:
+                he_driving['pitch_in'] = pitch_c_seq[:, frame_idx] 
+            if roll_c_seq is not None:
+                he_driving['roll_in'] = roll_c_seq[:, frame_idx] 
+            
+            kp_driving = keypoint_transformation(kp_canonical, he_driving)
+            kp_norm = kp_driving
+            out = generator(source_image, kp_source=kp_source, kp_driving=kp_norm)
+            
+            # Yield the frame and progress
+            progress = (frame_idx + 1) / total_frames
+            
+            # Call callback if provided (for live preview)
+            if callback:
+                frame_data = {
+                    'frame': out['prediction'],
+                    'frame_idx': frame_idx,
+                    'progress': progress,
+                    'total_frames': total_frames
+                }
+                callback(frame_data)
+            
+            yield out['prediction'], progress
+
 class AnimateModel(torch.nn.Module):
     """
     Merge all generator related updates into single model for better multi-gpu usage

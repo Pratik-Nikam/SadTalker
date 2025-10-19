@@ -1,14 +1,23 @@
-import os, sys
-import gradio as gr
-from src.gradio_demo import SadTalker  
+#!/usr/bin/env python3
+"""
+Simplified SadTalker with Real-time Streaming Support
+Uses a simpler approach that works better with Gradio
+"""
 
+import os
+import sys
+import gradio as gr
+import numpy as np
+import cv2
+import time
+import threading
+from src.gradio_demo import SadTalker  
 
 try:
     import webui  # in webui
     in_webui = True
 except:
     in_webui = False
-
 
 def toggle_audio_file(choice):
     if choice == False:
@@ -22,8 +31,7 @@ def ref_video_fn(path_of_ref_video):
     else:
         return gr.update(value=False)
 
-def sadtalker_demo(checkpoint_path='checkpoints', config_path='src/config', warpfn=None):
-
+def sadtalker_simple_streaming_demo(checkpoint_path='checkpoints', config_path='src/config', warpfn=None):
     sad_talker = SadTalker(checkpoint_path, config_path, lazy_load=True)
     
     # Global variables for streaming
@@ -32,7 +40,7 @@ def sadtalker_demo(checkpoint_path='checkpoints', config_path='src/config', warp
     
     def frame_callback(frame_data):
         """Callback function to handle streaming frames"""
-        nonlocal current_frame, streaming_state
+        global current_frame, streaming_state
         
         try:
             if 'is_nodding' in frame_data and frame_data['is_nodding']:
@@ -72,7 +80,7 @@ def sadtalker_demo(checkpoint_path='checkpoints', config_path='src/config', warp
     def generate_with_streaming(source_image, driven_audio, preprocess_type, is_still_mode, 
                                enhancer, batch_size, size_of_image, pose_style):
         """Generate video with live streaming preview"""
-        nonlocal streaming_state, current_frame
+        global streaming_state, current_frame
         
         try:
             streaming_state["active"] = True
@@ -99,11 +107,14 @@ def sadtalker_demo(checkpoint_path='checkpoints', config_path='src/config', warp
         except Exception as e:
             streaming_state["active"] = False
             streaming_state["status"] = f"Error: {str(e)}"
+            print(f"Error in generate_with_streaming: {e}")
+            import traceback
+            traceback.print_exc()
             return None, current_frame, streaming_state["status"]
     
     def update_preview():
         """Update the live preview periodically"""
-        nonlocal current_frame, streaming_state
+        global current_frame, streaming_state
         
         if streaming_state["active"] and current_frame is not None:
             return current_frame, streaming_state["status"]
@@ -112,31 +123,23 @@ def sadtalker_demo(checkpoint_path='checkpoints', config_path='src/config', warp
         else:
             return None, "Ready to generate"
 
-    with gr.Blocks(analytics_enabled=False) as sadtalker_interface:
-        gr.Markdown("<div align='center'> <h2> Talking Avatar Generator </span> </h2> \
+    with gr.Blocks(analytics_enabled=False, title="SadTalker Simple Streaming") as sadtalker_interface:
+        gr.Markdown("<div align='center'> <h2> 😭 SadTalker: Simple Streaming with Live Preview </span> </h2> \
                     <a style='font-size:18px;color: #efefef' href='https://arxiv.org/abs/2211.12194'>Arxiv</a> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; \
                     <a style='font-size:18px;color: #efefef' href='https://sadtalker.github.io'>Homepage</a>  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; \
                      <a style='font-size:18px;color: #efefef' href='https://github.com/Winfredy/SadTalker'> Github </div>")
         
-        with gr.Row().style(equal_height=False):
+        with gr.Row():
             with gr.Column(variant='panel'):
                 with gr.Tabs(elem_id="sadtalker_source_image"):
                     with gr.TabItem('Upload image'):
                         with gr.Row():
-                            source_image = gr.Image(label="Source image", source="upload", type="filepath", elem_id="img2img_image").style(width=512)
+                            source_image = gr.Image(label="Source image", source="upload", type="filepath", elem_id="img2img_image")
 
                 with gr.Tabs(elem_id="sadtalker_driven_audio"):
                     with gr.TabItem('Upload OR TTS'):
                         with gr.Column(variant='panel'):
                             driven_audio = gr.Audio(label="Input audio", source="upload", type="filepath")
-
-                        # if sys.platform != 'win32' and not in_webui: 
-                        #     from src.utils.text2speech import TTSTalker
-                        #     tts_talker = TTSTalker()
-                        #     with gr.Column(variant='panel'):
-                        #         input_text = gr.Textbox(label="Generating audio from text", lines=5, placeholder="please enter some text here, we genreate the audio from text using @Coqui.ai TTS.")
-                        #         tts = gr.Button('Generate audio',elem_id="sadtalker_audio_generate", variant='primary')
-                        #         tts.click(fn=tts_talker.test, inputs=[input_text], outputs=[driven_audio])
 
                         if sys.platform != 'win32' and not in_webui: 
                             try:
@@ -155,10 +158,8 @@ def sadtalker_demo(checkpoint_path='checkpoints', config_path='src/config', warp
                     with gr.TabItem('Settings'):
                         gr.Markdown("need help? please visit our [best practice page](https://github.com/OpenTalker/SadTalker/blob/main/docs/best_practice.md) for more detials")
                         with gr.Column(variant='panel'):
-                            # width = gr.Slider(minimum=64, elem_id="img2img_width", maximum=2048, step=8, label="Manually Crop Width", value=512) # img2img_width
-                            # height = gr.Slider(minimum=64, elem_id="img2img_height", maximum=2048, step=8, label="Manually Crop Height", value=512) # img2img_width
-                            pose_style = gr.Slider(minimum=0, maximum=46, step=1, label="Pose style", value=0) # 
-                            size_of_image = gr.Radio([256, 512], value=256, label='face model resolution', info="use 256/512 model?") # 
+                            pose_style = gr.Slider(minimum=0, maximum=46, step=1, label="Pose style", value=0)
+                            size_of_image = gr.Radio([256, 512], value=256, label='face model resolution', info="use 256/512 model?")
                             preprocess_type = gr.Radio(['crop', 'resize','full', 'extcrop', 'extfull'], value='crop', label='preprocess', info="How to handle input image?")
                             is_still_mode = gr.Checkbox(label="Still Mode (fewer head motion, works with preprocess `full`)")
                             batch_size = gr.Slider(label="batch size in generation", step=1, maximum=10, value=2)
@@ -166,52 +167,35 @@ def sadtalker_demo(checkpoint_path='checkpoints', config_path='src/config', warp
                             submit = gr.Button('Generate', elem_id="sadtalker_generate", variant='primary')
                             
                 with gr.Tabs(elem_id="sadtalker_genearted"):
-                        with gr.TabItem('Live Preview'):
-                            live_preview = gr.Image(label="Live Preview", height=300)
-                            progress_bar = gr.Progress()
-                            status_text = gr.Textbox(label="Status", value="Ready to generate", interactive=False)
-                        with gr.TabItem('Final Result'):
-                            gen_video = gr.Video(label="Generated video", format="mp4")
+                    with gr.TabItem('Live Preview'):
+                        live_preview = gr.Image(label="Live Preview", height=300)
+                        progress_bar = gr.Progress()
+                        status_text = gr.Textbox(label="Status", value="Ready to generate", interactive=False)
+                        
+                        # Auto-refresh button for live preview
+                        refresh_btn = gr.Button('Refresh Preview', variant='secondary')
+                        
+                    with gr.TabItem('Final Result'):
+                        gen_video = gr.Video(label="Generated video", format="mp4")
 
-        if warpfn:
-            submit.click(
-                        fn=warpfn(sad_talker.test), 
-                        inputs=[source_image,
-                                driven_audio,
-                                preprocess_type,
-                                is_still_mode,
-                                enhancer,
-                                batch_size,                            
-                                size_of_image,
-                                pose_style
-                                ], 
-                        outputs=[gen_video]
-                        )
-        else:
-            submit.click(
-                        fn=generate_with_streaming, 
-                        inputs=[source_image,
-                                driven_audio,
-                                preprocess_type,
-                                is_still_mode,
-                                enhancer,
-                                batch_size,                            
-                                size_of_image,
-                                pose_style
-                                ], 
-                        outputs=[gen_video, live_preview, status_text]
-                        )
+        # Connect the streaming function
+        submit.click(
+            fn=generate_with_streaming, 
+            inputs=[source_image, driven_audio, preprocess_type, is_still_mode,
+                   enhancer, batch_size, size_of_image, pose_style], 
+            outputs=[gen_video, live_preview, status_text]
+        )
         
-        # Note: Live preview updates will be handled by the callback system
-        # The frame_callback function will update the UI as frames are generated
+        # Connect refresh button
+        refresh_btn.click(
+            fn=update_preview,
+            inputs=[],
+            outputs=[live_preview, status_text]
+        )
 
     return sadtalker_interface
- 
 
 if __name__ == "__main__":
-
-    demo = sadtalker_demo()
+    demo = sadtalker_simple_streaming_demo()
     demo.queue()
     demo.launch()
-
-
