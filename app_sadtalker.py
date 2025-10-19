@@ -42,6 +42,8 @@ def sadtalker_demo(checkpoint_path='checkpoints', config_path='src/config', warp
                 frame_idx = frame_data['frame_idx']
                 total_frames = frame_data['total_frames']
                 streaming_state["progress"] = progress
+                streaming_state["current_frame"] = frame_idx + 1
+                streaming_state["total_frames"] = total_frames
                 streaming_state["status"] = f"Generating frame {frame_idx + 1}/{total_frames} ({progress:.1%})"
             
             # Convert frame to displayable format
@@ -94,23 +96,26 @@ def sadtalker_demo(checkpoint_path='checkpoints', config_path='src/config', warp
             streaming_state["active"] = False
             streaming_state["status"] = "Generation complete!"
             
-            return result_path, current_frame, streaming_state["status"]
+            frame_info = f"Frame {streaming_state.get('current_frame', 0)}/{streaming_state.get('total_frames', 0)}"
+            return result_path, current_frame, streaming_state["status"], frame_info
             
         except Exception as e:
             streaming_state["active"] = False
             streaming_state["status"] = f"Error: {str(e)}"
-            return None, current_frame, streaming_state["status"]
+            return None, current_frame, streaming_state["status"], "Error occurred"
     
     def update_preview():
         """Update the live preview periodically"""
         nonlocal current_frame, streaming_state
         
+        frame_info = f"Frame {streaming_state.get('current_frame', 0)}/{streaming_state.get('total_frames', 0)}"
+        
         if streaming_state["active"] and current_frame is not None:
-            return current_frame, streaming_state["status"]
+            return current_frame, streaming_state["status"], frame_info
         elif current_frame is not None:
-            return current_frame, streaming_state["status"]
+            return current_frame, streaming_state["status"], frame_info
         else:
-            return None, "Ready to generate"
+            return None, "Ready to generate", "Not started"
 
     with gr.Blocks(analytics_enabled=False) as sadtalker_interface:
         gr.Markdown("<div align='center'> <h2> Talking Avatar Generator </span> </h2> \
@@ -166,12 +171,21 @@ def sadtalker_demo(checkpoint_path='checkpoints', config_path='src/config', warp
                             submit = gr.Button('Generate', elem_id="sadtalker_generate", variant='primary')
                             
                 with gr.Tabs(elem_id="sadtalker_genearted"):
-                        with gr.TabItem('Live Preview'):
-                            live_preview = gr.Image(label="Live Preview", height=300)
-                            progress_bar = gr.Progress()
-                            status_text = gr.Textbox(label="Status", value="Ready to generate", interactive=False)
-                        with gr.TabItem('Final Result'):
-                            gen_video = gr.Video(label="Generated video", format="mp4")
+                    with gr.TabItem('Live Preview'):
+                        live_preview = gr.Image(label="Live Preview", height=300)
+                        progress_bar = gr.Progress()
+                        status_text = gr.Textbox(label="Status", value="Ready to generate", interactive=False)
+                        
+                        # Add refresh button and auto-refresh toggle
+                        with gr.Row():
+                            refresh_btn = gr.Button('🔄 Refresh Preview', elem_id="refresh_preview", variant='secondary', size='sm')
+                            auto_refresh = gr.Checkbox(label="Auto-refresh during generation", value=True)
+                        
+                        # Add frame counter
+                        frame_counter = gr.Textbox(label="Frame Progress", value="Not started", interactive=False)
+                        
+                    with gr.TabItem('Final Result'):
+                        gen_video = gr.Video(label="Generated video", format="mp4")
 
         if warpfn:
             submit.click(
@@ -199,11 +213,90 @@ def sadtalker_demo(checkpoint_path='checkpoints', config_path='src/config', warp
                                 size_of_image,
                                 pose_style
                                 ], 
-                        outputs=[gen_video, live_preview, status_text]
+                        outputs=[gen_video, live_preview, status_text, frame_counter]
                         )
+            
+            # Connect refresh button
+            refresh_btn.click(
+                fn=update_preview,
+                inputs=[],
+                outputs=[live_preview, status_text, frame_counter]
+            )
         
-        # Note: Live preview updates will be handled by the callback system
-        # The frame_callback function will update the UI as frames are generated
+        # Add JavaScript for real-time updates
+        js_code = """
+        <script>
+        function startPreviewUpdates() {
+            let isGenerating = false;
+            let autoRefresh = true;
+            let pollingInterval = null;
+            
+            function updatePreview() {
+                if (isGenerating && autoRefresh) {
+                    // Trigger a refresh of the live preview
+                    const refreshBtn = document.querySelector('button[data-testid="refresh_preview"]');
+                    if (refreshBtn) {
+                        refreshBtn.click();
+                    }
+                    
+                    // Check if generation is complete
+                    const statusEl = document.querySelector('input[data-testid="status_text"]');
+                    if (statusEl) {
+                        const statusText = statusEl.value;
+                        if (statusText.includes('Generation complete') || statusText.includes('Error:')) {
+                            isGenerating = false;
+                            if (pollingInterval) {
+                                clearInterval(pollingInterval);
+                                pollingInterval = null;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            function startPolling() {
+                if (pollingInterval) {
+                    clearInterval(pollingInterval);
+                }
+                pollingInterval = setInterval(updatePreview, 2000); // Poll every 2 seconds
+            }
+            
+            // Listen for generation start
+            document.addEventListener('click', function(e) {
+                if (e.target && e.target.textContent && e.target.textContent.includes('Generate')) {
+                    isGenerating = true;
+                    setTimeout(startPolling, 3000); // Start polling after 3 seconds
+                }
+            });
+            
+            // Listen for auto-refresh toggle
+            document.addEventListener('change', function(e) {
+                if (e.target && e.target.type === 'checkbox' && e.target.labels[0].textContent.includes('Auto-refresh')) {
+                    autoRefresh = e.target.checked;
+                }
+            });
+            
+            // Add visual feedback
+            function addGenerationIndicator() {
+                const generateBtn = document.querySelector('button[data-testid="sadtalker_generate"]');
+                if (generateBtn && isGenerating) {
+                    generateBtn.style.background = 'linear-gradient(45deg, #ff6b6b, #ffa500)';
+                    generateBtn.textContent = '🔄 Generating...';
+                } else if (generateBtn) {
+                    generateBtn.style.background = '';
+                    generateBtn.textContent = 'Generate';
+                }
+            }
+            
+            setInterval(addGenerationIndicator, 1000);
+        }
+        
+        // Start when page loads
+        document.addEventListener('DOMContentLoaded', startPreviewUpdates);
+        </script>
+        """
+        
+        sadtalker_interface.add(gr.HTML(js_code))
 
     return sadtalker_interface
  
