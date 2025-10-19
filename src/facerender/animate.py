@@ -202,6 +202,7 @@ class AnimateFromCoeff():
         video_name = x['video_name']  + '.mp4'
         path = os.path.join(video_save_dir, 'temp_'+video_name)
         
+        # imageio.mimsave(path, result, format='FFMPEG')
         imageio.mimsave(path, result,  fps=float(25))
 
         av_path = os.path.join(video_save_dir, video_name)
